@@ -1,13 +1,17 @@
 library(shiny)
 library(ggplot2)
 ui <- fluidPage(
-  sliderInput("mean", label="Mean (μ):", min=-10, max=10, value=0),
-  sliderInput("sd", label="Standard Deviation (σ):", min=0.1, max=5, value=1),
-  numericInput("rangemin", label="Range Min:", value=-2),
-  numericInput("rangemax", label="Range Max:", value=2),
+  sidebarPanel(
+    sliderInput("mean", label="Mean (μ):", min=-10, max=10, value=0),
+    sliderInput("sd", label="Standard Deviation (σ):", min=0.1, max=5, value=1),
+    numericInput("rangemin", label="Range Min:", value=-2),
+    numericInput("rangemax", label="Range Max:", value=2),
+  ),
   
+  mainPanel(
   plotOutput("graph"),
   verbatimTextOutput("probability")
+  )
 )
 server <- function(input, output, session) {
   prob <- reactive({
