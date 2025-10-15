@@ -6,6 +6,7 @@ ui <- fluidPage(
   numericInput("rangemin", label="Range Min:", value=-2),
   numericInput("rangemax", label="Range Max:", value=2),
   
+  plotOutput("graph"),
   verbatimTextOutput("probability")
 )
 server <- function(input, output, session) {
@@ -16,8 +17,26 @@ server <- function(input, output, session) {
           (pmin - pmax))
   })
   
+  graph <- reactive({
+    x <- seq(-20, 20, length.out = 1000)
+    y <- dnorm(x, mean = input$mean, sd = input$sd)
+    df <- data.frame(x, y)
+    
+    ggplot(df, aes(x, y)) +
+      geom_line(color = "blue", linewidth=1) +
+      geom_area(data = subset(df, x >= input$rangemin & x <= input$rangemax),
+                aes(y = y), fill = "lightblue", alpha = 0.5) +
+      labs(title = "Normal Distribution PDF",
+           x = "x", y = "Density") +
+      theme_minimal()
+  })
+  
   output$probability <- renderText({
     prob()
+  })
+  
+  output$graph <- renderPlot({
+    graph()
   })
 }
 shinyApp(ui, server)
