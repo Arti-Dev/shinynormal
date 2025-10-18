@@ -5,7 +5,7 @@ ui <- fluidPage(
   titlePanel("Normal PDF with Optional Confidence Intervals"),
   sidebarLayout(
     sidebarPanel(
-      numericInput("mean", label = "Mean (μ):", value = 1),
+      numericInput("mean", label = "Mean (μ):", value = 0),
       numericInput("sd", label = "Standard Deviation (σ):", value = 1),
       numericInput("rangemin", label = "Range Min:", value = -2),
       numericInput("rangemax", label = "Range Max:", value = 2),
