@@ -5,8 +5,8 @@ ui <- fluidPage(
   titlePanel("Normal PDF with Optional Confidence Intervals"),
   sidebarLayout(
     sidebarPanel(
-      sliderInput("mean", label = "Mean (μ):", min = -10, max = 10, value = 0),
-      sliderInput("sd", label = "Standard Deviation (σ):", min = 0.1, max = 5, value = 1),
+      numericInput("mean", label = "Mean (μ):", value = 0),
+      numericInput("sd", label = "Standard Deviation (σ):", value = 0),
       numericInput("rangemin", label = "Range Min:", value = -2),
       numericInput("rangemax", label = "Range Max:", value = 2),
       checkboxGroupInput(
