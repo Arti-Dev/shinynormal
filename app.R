@@ -35,7 +35,21 @@ ui <- fluidPage(
     mainPanel(
       plotOutput("graph"),
       verbatimTextOutput("probability"),
-      verbatimTextOutput("ci_text")
+      
+      conditionalPanel(
+        condition = "input.cis && input.cis.indexOf('ci90') > -1",
+        wellPanel(
+          h4("90% Confidence Interval"),
+          verbatimTextOutput("ci90_text")
+        )
+      ),
+      conditionalPanel(
+        condition = "input.cis && input.cis.indexOf('ci95') > -1",
+        wellPanel(
+          h4("95% Confidence Interval"),
+          verbatimTextOutput("ci95_text")
+        )
+      )
     )
   )
 )
@@ -137,7 +151,7 @@ server <- function(input, output, session) {
     p <- ggplot(df, aes(x, y)) +
       geom_line(color = "blue", linewidth = 1) +
       labs(title = "Normal Distribution PDF", x = "x", y = "Density") +
-      scale_x_continuous(sec.axis = sec_axis(~ (. - m) / s, name = "Values")) +
+      scale_x_continuous(sec.axis = sec_axis(~ (. - m) / s, name = "Z = (x - μ) / σ")) +
       theme_minimal()
     
     if (mode == "lt") {
@@ -193,26 +207,30 @@ server <- function(input, output, session) {
   
   output$probability <- renderText({ prob() })
   
-  output$ci_text <- renderText({
-    if (input$sd <= 0) return("")
-    b <- ci_bounds()
-    kind <- tail_kind()
-    
-    fmt_two <- function(label, ci) {
-      sprintf("%s CI (two-sided): x=[%.4f, %.4f], z=±%.4f", label, ci$lower, ci$upper, ci$z)
+  output$ci90_text <- renderText({
+    if (input$sd <= 0 || !"ci90" %in% input$cis) return("")
+    b <- ci_bounds()$ci90
+    if (tail_kind() == "two") {
+      sprintf("90%% CI (two-sided)\n x: [%.4f, %.4f]\n z: ±%.4f", b$lower, b$upper, b$z)
+    } else {
+      if (is.infinite(b$lower))
+        sprintf("90%% CI (one-sided, upper)\n x: (-Inf, %.4f]\n z: %.4f", b$upper, b$z)
+      else
+        sprintf("90%% CI (one-sided, lower)\n x: [%.4f, Inf)\n z: %.4f", b$lower, b$z)
     }
-    fmt_one <- function(label, ci) {
-      if (is.infinite(ci$lower)) {
-        sprintf("%s CI (one-sided, upper): x=(-Inf, %.4f], z=%.4f", label, ci$upper, ci$z)
-      } else {
-        sprintf("%s CI (one-sided, lower): x=[%.4f, Inf), z=%.4f", label, ci$lower, ci$z)
-      }
+  })
+  
+  output$ci95_text <- renderText({
+    if (input$sd <= 0 || !"ci95" %in% input$cis) return("")
+    b <- ci_bounds()$ci95
+    if (tail_kind() == "two") {
+      sprintf("95%% CI (two-sided)\n x: [%.4f, %.4f]\n z: ±%.4f", b$lower, b$upper, b$z)
+    } else {
+      if (is.infinite(b$lower))
+        sprintf("95%% CI (one-sided, upper)\n x: (-Inf, %.4f]\n z: %.4f", b$upper, b$z)
+      else
+        sprintf("95%% CI (one-sided, lower)\n x: [%.4f, Inf)\n z: %.4f", b$lower, b$z)
     }
-    
-    parts <- character()
-    if ("ci90" %in% input$cis) parts <- c(parts, if (kind == "two") fmt_two("90%", b$ci90) else fmt_one("90%", b$ci90))
-    if ("ci95" %in% input$cis) parts <- c(parts, if (kind == "two") fmt_two("95%", b$ci95) else fmt_one("95%", b$ci95))
-    if (length(parts) == 0) "" else paste(parts, collapse = "   |   ")
   })
   
   output$graph <- renderPlot({ graph() })
