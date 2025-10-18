@@ -192,9 +192,9 @@ server <- function(input, output, session) {
     
     # Draw user cut(s)
     if (mode %in% c("lt", "gt")) {
-      p <- p + geom_vline(xintercept = a, color = "blue", linewidth = 0.8)
+      p <- p + geom_vline(xintercept = a, color = "lightblue", linewidth = 0.8)
     } else {
-      p <- p + geom_vline(xintercept = c(lo, hi), color = "blue", linewidth = 0.8)
+      p <- p + geom_vline(xintercept = c(lo, hi), color = "lightblue", linewidth = 0.8)
     }
     
     p
