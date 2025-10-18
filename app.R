@@ -8,7 +8,6 @@ ui <- fluidPage(
       numericInput("mean", label = "Mean (μ):", value = 0),
       numericInput("sd", label = "Standard Deviation (σ):", value = 1, min = 0.0001, step = 0.1),
       
-      # Probability mode selector
       selectInput(
         "mode",
         label = "Probability region",
@@ -19,10 +18,8 @@ ui <- fluidPage(
         selected = "between"
       ),
       
-      # Always show the first input; we'll relabel it dynamically
       numericInput("rangemin", label = "Range Min:", value = -2),
       
-      # Show Range Max only when needed
       conditionalPanel(
         condition = "input.mode == 'between' || input.mode == 'outside'",
         numericInput("rangemax", label = "Range Max:", value = 2)
@@ -45,7 +42,6 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
-  # Relabel Range Min depending on mode
   observeEvent(input$mode, {
     if (input$mode == "lt") {
       updateNumericInput(session, "rangemin", label = "Cutoff (x0): P(X < x0)")
@@ -53,7 +49,6 @@ server <- function(input, output, session) {
       updateNumericInput(session, "rangemin", label = "Cutoff (x0): P(X > x0)")
     } else {
       updateNumericInput(session, "rangemin", label = "Range Min:")
-      # If rangemax exists (only visible in UI for between/outside), keep its standard label
       updateNumericInput(session, "rangemax", label = "Range Max:")
     }
   }, ignoreInit = TRUE)
@@ -97,7 +92,6 @@ server <- function(input, output, session) {
     )
   })
   
-  # Confidence intervals respect one- vs two-tailed choice
   ci_bounds <- reactive({
     m <- input$mean; s <- input$sd
     mode <- input$mode
@@ -146,20 +140,18 @@ server <- function(input, output, session) {
       scale_x_continuous(sec.axis = sec_axis(~ (. - m) / s, name = "Values")) +
       theme_minimal()
     
-    # Probability region shading (original light blue)
     if (mode == "lt") {
       p <- p + geom_area(data = subset(df, x <= a), aes(y = y), fill = "lightblue", alpha = 0.5)
     } else if (mode == "gt") {
       p <- p + geom_area(data = subset(df, x >= a), aes(y = y), fill = "lightblue", alpha = 0.5)
     } else if (mode == "between") {
       p <- p + geom_area(data = subset(df, x >= lo & x <= hi), aes(y = y), fill = "lightblue", alpha = 0.5)
-    } else { # outside
+    } else {
       p <- p +
         geom_area(data = subset(df, x <= lo), aes(y = y), fill = "lightblue", alpha = 0.5) +
         geom_area(data = subset(df, x >= hi), aes(y = y), fill = "lightblue", alpha = 0.5)
     }
     
-    # Confidence intervals
     bounds <- ci_bounds()
     
     add_two_sided <- function(ci, fill_col, line_col, lty) {
@@ -190,11 +182,10 @@ server <- function(input, output, session) {
       else add_one_sided(ci, "orange", "darkorange", "dotdash")
     }
     
-    # Draw user cut(s)
     if (mode %in% c("lt", "gt")) {
-      p <- p + geom_vline(xintercept = a, color = "lightblue", linewidth = 0.8)
+      p <- p + geom_vline(xintercept = a, color = "blue", linewidth = 0.8)
     } else {
-      p <- p + geom_vline(xintercept = c(lo, hi), color = "lightblue", linewidth = 0.8)
+      p <- p + geom_vline(xintercept = c(lo, hi), color = "blue", linewidth = 0.8)
     }
     
     p
