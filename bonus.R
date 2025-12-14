@@ -18,6 +18,20 @@ ui <- fluidPage(
             ),
             selected = "one_t"
           ),
+
+           conditionalPanel(
+            condition = "input.test_type == 'one_t' || input.test_type == 'two_t' || input.test_type == 'prop'",
+            radioButtons(
+              "alternative",
+              label = "Alternative Hypothesis:",
+              choices = c(
+                "Two-sided" = "two.sided",
+                "Less (lower-tailed)" = "less",
+                "Greater (upper-tailed)" = "greater"
+              ),
+              selected = "two.sided"
+            )
+          ),
           
           conditionalPanel(
             condition = "input.test_type == 'one_t' || input.test_type == 'two_t'",
@@ -114,17 +128,26 @@ server <- function(input, output, session) {
   
   test_out <- eventReactive(input$run, {
     alpha <- input$alpha
+    alt   <- input$alternative
     
+    # ---------- One-sample t-test ----------
     if (input$test_type == "one_t") {
       x <- parse_sample(input$sample_data1)
-      if (length(x) < 2) return(list(error = "Please enter at least 2 numeric values."))
+      if (length(x) < 2)
+        return(list(error = "Please enter at least 2 numeric values."))
       
-      tt <- t.test(x, mu = input$mu0, conf.level = 1 - alpha)
+      tt <- t.test(
+        x,
+        mu = input$mu0,
+        alternative = alt,
+        conf.level = 1 - alpha
+      )
       
       return(list(
         type = "one_t",
         x = x,
         mu0 = input$mu0,
+        alt = alt,
         alpha = alpha,
         n = length(x),
         mean = mean(x),
@@ -137,14 +160,17 @@ server <- function(input, output, session) {
       ))
     }
     
+    # ---------- Two-sample t-test ----------
     if (input$test_type == "two_t") {
       x1 <- parse_sample(input$sample_data1)
       x2 <- parse_sample(input$sample_data2)
-      if (length(x1) < 2 || length(x2) < 2) return(list(error = "Please enter valid data for both samples."))
+      if (length(x1) < 2 || length(x2) < 2)
+        return(list(error = "Please enter valid data for both samples."))
       
       tt <- t.test(
         x1, x2,
         mu = input$diff0,
+        alternative = alt,
         var.equal = !input$welch,
         conf.level = 1 - alpha
       )
@@ -154,6 +180,7 @@ server <- function(input, output, session) {
         x1 = x1,
         x2 = x2,
         diff0 = input$diff0,
+        alt = alt,
         alpha = alpha,
         n1 = length(x1),
         n2 = length(x2),
@@ -168,25 +195,54 @@ server <- function(input, output, session) {
       ))
     }
     
+    # ---------- Proportion z-test ----------
     if (input$test_type == "prop") {
-      x <- as.integer(input$x_success)
-      n <- as.integer(input$n_trials)
+      x  <- as.integer(input$x_success)
+      n  <- as.integer(input$n_trials)
       p0 <- input$p0
       
-      phat <- x / n
-      se <- sqrt(p0 * (1 - p0) / n)
-      z <- (phat - p0) / se
-      pval <- 2 * (1 - pnorm(abs(z)))
+      if (x < 0 || x > n)
+        return(list(error = "x must be between 0 and n."))
       
-      zcrit <- qnorm(1 - alpha / 2)
+      phat <- x / n
+      se   <- sqrt(p0 * (1 - p0) / n)
+      z    <- (phat - p0) / se
+      
+      # p-value by alternative
+      pval <- switch(
+        alt,
+        "two.sided" = 2 * (1 - pnorm(abs(z))),
+        "less"      = pnorm(z),
+        "greater"   = 1 - pnorm(z)
+      )
+      
+      # confidence interval
       se_ci <- sqrt(phat * (1 - phat) / n)
-      ci <- pmax(0, pmin(1, c(phat - zcrit * se_ci, phat + zcrit * se_ci)))
+      
+      ci <- switch(
+        alt,
+        "two.sided" = {
+          zc <- qnorm(1 - alpha / 2)
+          c(phat - zc * se_ci, phat + zc * se_ci)
+        },
+        "less" = {
+          zc <- qnorm(1 - alpha)
+          c(0, phat + zc * se_ci)
+        },
+        "greater" = {
+          zc <- qnorm(1 - alpha)
+          c(phat - zc * se_ci, 1)
+        }
+      )
+      
+      ci <- pmax(0, pmin(1, ci))
       
       return(list(
         type = "prop",
         x = x,
         n = n,
         p0 = p0,
+        alt = alt,
         alpha = alpha,
         phat = phat,
         z = z,
@@ -204,24 +260,33 @@ server <- function(input, output, session) {
     if (is.null(out) || !is.null(out$error)) return(out$error)
     
     decision <- if (out$reject) "REJECT H0" else "FAIL TO REJECT H0"
+    ha <- ifelse(out$alt == "less", "<", ifelse(out$alt == "greater", ">", "≠"))
     
     if (out$type == "one_t") {
       sprintf(
-        "One-Sample t-test\nH0: mu = %.4f\nalpha = %.4f\n\nn = %d\nmean = %.6f\nsd = %.6f\n\nt = %.6f, df = %.0f, p = %.6f\nCI: [%.6f, %.6f]\n\nDecision: %s",
-        out$mu0, out$alpha, out$n, out$mean, out$sd,
-        out$t, out$df, out$p, out$ci[1], out$ci[2], decision
+        "One-Sample t-test\nH0: μ = %.4f\nHA: μ %s %.4f\n\nn = %d\nmean = %.6f\nsd = %.6f\n\nt = %.6f, df = %.0f, p = %.6f\nCI: [%.6f, %.6f]\n\nDecision: %s",
+        out$mu0, ha, out$mu0,
+        out$n, out$mean, out$sd,
+        out$t, out$df, out$p,
+        out$ci[1], out$ci[2],
+        decision
       )
     } else if (out$type == "two_t") {
       sprintf(
-        "Two-Sample t-test\nH0: mu1 - mu2 = %.4f\nalpha = %.4f\n\nmean1 = %.6f\nmean2 = %.6f\n\nt = %.6f, df = %.4f, p = %.6f\nCI: [%.6f, %.6f]\n\nDecision: %s",
-        out$diff0, out$alpha, out$mean1, out$mean2,
-        out$t, out$df, out$p, out$ci[1], out$ci[2], decision
+        "Two-Sample t-test\nH0: μ₁ − μ₂ = %.4f\nHA: μ₁ − μ₂ %s %.4f\n\nmean1 = %.6f\nmean2 = %.6f\n\nt = %.6f, df = %.4f, p = %.6f\nCI: [%.6f, %.6f]\n\nDecision: %s",
+        out$diff0, ha, out$diff0,
+        out$mean1, out$mean2,
+        out$t, out$df, out$p,
+        out$ci[1], out$ci[2],
+        decision
       )
     } else {
       sprintf(
-        "Proportion z-test\nH0: p = %.4f\nalpha = %.4f\n\nphat = %.6f\nz = %.6f, p = %.6f\nCI: [%.6f, %.6f]\n\nDecision: %s",
-        out$p0, out$alpha, out$phat, out$z, out$p,
-        out$ci[1], out$ci[2], decision
+        "Proportion z-test\nH0: p = %.4f\nHA: p %s %.4f\n\nphat = %.6f\nz = %.6f, p = %.6f\nCI: [%.6f, %.6f]\n\nDecision: %s",
+        out$p0, ha, out$p0,
+        out$phat, out$z, out$p,
+        out$ci[1], out$ci[2],
+        decision
       )
     }
   })
@@ -238,7 +303,8 @@ server <- function(input, output, session) {
     } else if (out$type == "two_t") {
       df <- data.frame(
         value = c(out$x1, out$x2),
-        group = factor(c(rep("Sample 1", length(out$x1)), rep("Sample 2", length(out$x2))))
+        group = factor(c(rep("Sample 1", length(out$x1)),
+                         rep("Sample 2", length(out$x2))))
       )
       ggplot(df, aes(value)) +
         geom_histogram(bins = 10) +
@@ -258,3 +324,4 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui, server)
+
