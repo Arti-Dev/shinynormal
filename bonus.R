@@ -2,7 +2,7 @@ library(shiny)
 library(ggplot2)
 
 ui <- fluidPage(
-  titlePanel("Barebones One-Sample t-Test App"),
+  titlePanel("Interactive Hypothesis Testing App"),
   sidebarLayout(
     sidebarPanel(
       selectInput(
